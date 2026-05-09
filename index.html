@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Геостационарная орбита и лазер</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #05070a; color: white; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; overflow-x: hidden; }
+        canvas { background: radial-gradient(circle, #0d1117 0%, #000 100%); border-radius: 15px; box-shadow: 0 0 50px rgba(0,0,0,0.8); cursor: crosshair; }
+        .controls { background: rgba(23, 27, 38, 0.95); padding: 25px; border-radius: 15px; width: 500px; margin-top: 20px; border: 1px solid #30363d; }
+        input[type=range] { width: 100%; margin: 15px 0; accent-color: #4af2ff; }
+        .stats { font-family: 'Consolas', monospace; color: #4af2ff; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 0.95em; }
+        .val { color: #ffffff; font-weight: bold; }
+        .geo-hint { color: #ffca28; font-size: 0.85em; margin-top: 10px; border-left: 3px solid #ffca28; padding-left: 10px; }
+    </style>
+</head>
+<body>
+
+    <h2 style="margin-bottom: 10px;">Орбитальный лазер и вращение Земли</h2>
+    <canvas id="orbitCanvas" width="700" height="600"></canvas>
+
+    <div class="controls">
+        <label>Высота орбиты: <span id="heightValue" class="val">400</span> км</label>
+        <input type="range" id="heightSlider" min="0" max="40000" step="400" list="markers">
+<datalist id="markers">
+  <option value="0"></option>
+  <option value="10000"></option>
+  <option value="20000"></option>
+  <option value="30000"></option>
+  <option value="40000"></option>
+</datalist>
+        
+        <div class="stats">
+            <div>Скорость: <span id="speedValue" class="val">0</span> км/с</div>
+            <div>Период: <span id="periodValue" class="val">0</span> ч.</div>
+        </div>
+        
+        <div id="geoHint" class="geo-hint" style="display:none;">
+            ✨ <b>Геостационарная орбита достигнута!</b> Спутник неподвижен относительно поверхности Земли.
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('orbitCanvas');
+        const ctx = canvas.getContext('2d');
+        const slider = document.getElementById('heightSlider');
+        
+        // Физические константы
+        const G = 6.67430e-11;
+        const M = 5.972e24; 
+        const R_EARTH = 6371000; 
+        const DAY_SECONDS = 86400; // 24 часа
+
+        let satelliteAngle = 0;
+        let earthRotationAngle = 0;
+
+        function update() {
+            const h = parseFloat(slider.value) * 1000;
+            const r = R_EARTH + h;
+            
+            // Расчет скорости
+            const v = Math.sqrt((G * M) / r);
+            const periodSec = (2 * Math.PI * r) / v;
+            
+            // Обновление текста
+            document.getElementById('heightValue').innerText = Math.round(slider.value).toLocaleString();
+            document.getElementById('speedValue').innerText = (v / 1000).toFixed(3);
+            document.getElementById('periodValue').innerText = (periodSec / 3600).toFixed(2);
+
+            // Показываем подсказку для геостационара (около 35786 км)
+            const isGeo = Math.abs(slider.value - 35786) < 500; 
+            document.getElementById('geoHint').style.display = isGeo ? 'block' : 'none';
+
+            // Масштабирование
+            const scale = 250 / (R_EARTH + h);
+            
+            // Приращение углов
+            // МКС движется по физике
+            satelliteAngle += (v / r) * 20; // ускорено для наглядности
+            // Земля вращается: 360 градусов за 24 часа. Сохраняем ту же пропорцию времени
+            earthRotationAngle += ( (2 * Math.PI) / DAY_SECONDS ) * 20;
+
+            draw(scale, r, earthRotationAngle, satelliteAngle);
+            requestAnimationFrame(update);
+        }
+
+        function draw(scale, rPhys, eAngle, sAngle) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            
+            const rE = R_EARTH * scale;
+            const rS = rPhys * scale;
+
+            // 1. Рисуем Землю с "континентами"
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(eAngle);
+            
+            // Океан
+            ctx.beginPath();
+            ctx.arc(0, 0, rE, 0, Math.PI * 2);
+            ctx.fillStyle = '#1a73e8';
+            ctx.fill();
+
+            // Условные континенты (просто несколько фигур)
+            ctx.fillStyle = '#4caf50';
+            const drawContinent = (rotation, size) => {
+                ctx.beginPath();
+                ctx.ellipse(Math.cos(rotation)*rE/2, Math.sin(rotation)*rE/2, rE/1.5, rE/3, rotation, 0, Math.PI*2);
+                ctx.fill();
+            }
+            ctx.clip(); // Чтобы континенты не вылезали за круг Земли
+            drawContinent(0, 0.8);
+            drawContinent(2, 0.5);
+            drawContinent(4, 0.6);
+            
+            // Экваториальная метка (куда светит лазер)
+            ctx.fillStyle = 'white';
+            ctx.fillRect(rE - 25, -2, 10, 4); 
+            
+            ctx.restore();
+
+            // 2. Орбита
+            ctx.beginPath();
+            ctx.arc(cx, cy, rS, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.stroke();
+
+            // 3. Лазерный луч
+            const sX = cx + Math.cos(sAngle) * rS;
+            const sY = cy + Math.sin(sAngle) * rS;
+            
+            // Точка входа лазера на поверхность Земли (под тем же углом, что и спутник)
+            const lX = cx + Math.cos(sAngle) * rE;
+            const lY = cy + Math.sin(sAngle) * rE;
+
+            ctx.beginPath();
+            ctx.moveTo(sX, sY);
+            ctx.lineTo(lX, lY);
+            ctx.setLineDash([20, 4]); 
+            ctx.strokeStyle = 'rgba(255, 46, 46, 0.8)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 4. Спутник (МКС)
+            ctx.fillStyle = '#ff2e2e';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "#ff2e2e";
+            ctx.beginPath();
+            ctx.arc(sX, sY, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        update();
+    </script>
+</body>
+</html>
