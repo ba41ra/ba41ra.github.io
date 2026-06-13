@@ -120,7 +120,7 @@ document.getElementById('upload').addEventListener('change', function(event) {
                 srcY = (img.height - img.width) / 2;
             }
 
-            ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, 512, 512);
+            ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, 800, 470);
 
             const dataUrl = canvas.toDataURL('image/png');
 
@@ -132,7 +132,7 @@ document.getElementById('upload').addEventListener('change', function(event) {
             downloadLink.href = dataUrl;
             
             const originalName = file.name.substring(0, file.name.lastIndexOf('.')) || 'image';
-            downloadLink.download = originalName + '_512x512.png';
+            downloadLink.download = originalName + '_800x470.png';
             
             document.body.appendChild(downloadLink);
             downloadLink.click();
